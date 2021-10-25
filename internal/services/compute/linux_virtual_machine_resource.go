@@ -76,7 +76,8 @@ func resourceLinuxVirtualMachine() *pluginsdk.Resource {
 				},
 			},
 
-			"os_disk": virtualMachineOSDiskSchema(),
+			"os_disk":   virtualMachineOSDiskSchema(),
+			"data_disk": VirtualMachineDataDiskSchema(),
 
 			"size": {
 				Type:         pluginsdk.TypeString,
@@ -360,6 +361,9 @@ func resourceLinuxVirtualMachineCreate(d *pluginsdk.ResourceData, meta interface
 	osDiskRaw := d.Get("os_disk").([]interface{})
 	osDisk := expandVirtualMachineOSDisk(osDiskRaw, compute.OperatingSystemTypesLinux)
 
+	dataDisksRaw := d.Get("data_disk").([]interface{})
+	dataDisks := ExpandVirtualMachineDataDisk(dataDisksRaw)
+
 	secretsRaw := d.Get("secret").([]interface{})
 	secrets := expandLinuxSecrets(secretsRaw)
 
@@ -402,10 +406,7 @@ func resourceLinuxVirtualMachineCreate(d *pluginsdk.ResourceData, meta interface
 			StorageProfile: &compute.StorageProfile{
 				ImageReference: sourceImageReference,
 				OsDisk:         osDisk,
-
-				// Data Disks are instead handled via the Association resource - as such we can send an empty value here
-				// but for Updates this'll need to be nil, else any associations will be overwritten
-				DataDisks: &[]compute.DataDisk{},
+				DataDisks:      dataDisks,
 			},
 
 			// Optional
@@ -676,6 +677,11 @@ func resourceLinuxVirtualMachineRead(d *pluginsdk.ResourceData, meta interface{}
 			return fmt.Errorf("settings `os_disk`: %+v", err)
 		}
 
+		flattenedDataDisks := FlattenVirtualMachineDataDisk(profile.DataDisks)
+		if err := d.Set("data_disk", flattenedDataDisks); err != nil {
+			return fmt.Errorf("Error settings `data_disk`: %+v", err)
+		}
+
 		var storageImageId string
 		if profile.ImageReference != nil && profile.ImageReference.ID != nil {
 			storageImageId = *profile.ImageReference.ID
@@ -884,6 +890,20 @@ func resourceLinuxVirtualMachineUpdate(d *pluginsdk.ResourceData, meta interface
 			}
 		} else {
 			update.VirtualMachineProperties.ProximityPlacementGroup = &compute.SubResource{}
+		}
+	}
+
+	if d.HasChange("data_disk") {
+		shouldUpdate = true
+
+		// Code="Conflict" Message="Disk resizing is allowed only when creating a VM or when the VM is deallocated." Target="disk.diskSizeGB"
+		shouldShutDown = false
+		shouldDeallocate = false
+
+		dataDisksRaw := d.Get("data_disk").([]interface{})
+		dataDisks := ExpandVirtualMachineDataDisk(dataDisksRaw)
+		update.VirtualMachineProperties.StorageProfile = &compute.StorageProfile{
+			DataDisks: dataDisks,
 		}
 	}
 
@@ -1259,6 +1279,47 @@ func resourceLinuxVirtualMachineDelete(d *pluginsdk.ResourceData, meta interface
 		if _, err := deleteWait.WaitForStateContext(ctx); err != nil {
 			return fmt.Errorf("waiting for the deletion of Linux Virtual Machine %q (Resource Group %q): %v", id.Name, id.ResourceGroup, err)
 		}
+	}
+
+	if true {
+		log.Printf("[DEBUG] Deleting Data Disks from Linux Virtual Machine %q (Resource Group %q)..", id.Name, id.ResourceGroup)
+		disksClient := meta.(*clients.Client).Compute.DisksClient
+		dataDisks := []compute.DataDisk{}
+		if props := existing.VirtualMachineProperties; props != nil && props.StorageProfile != nil && props.StorageProfile.DataDisks != nil {
+			dataDisks = *props.StorageProfile.DataDisks
+		}
+
+		for _, dataDisk := range dataDisks {
+			managedDiskId := ""
+			if disk := dataDisk.ManagedDisk; disk != nil && disk.ID != nil {
+				managedDiskId = *disk.ID
+			}
+
+			if managedDiskId != "" {
+				diskId, err := parse.ManagedDiskID(managedDiskId)
+				if err != nil {
+					return err
+				}
+
+				diskDeleteFuture, err := disksClient.Delete(ctx, diskId.ResourceGroup, diskId.Name)
+				if err != nil {
+					if !response.WasNotFound(diskDeleteFuture.Response()) {
+						return fmt.Errorf("Error deleting Data Disk %q (Resource Group %q) for Linux Virtual Machine %q (Resource Group %q): %+v", diskId.Name, diskId.ResourceGroup, id.Name, id.ResourceGroup, err)
+					}
+				}
+				if !response.WasNotFound(diskDeleteFuture.Response()) {
+					if err := diskDeleteFuture.WaitForCompletionRef(ctx, disksClient.Client); err != nil {
+						return fmt.Errorf("Error Data Disk %q (Resource Group %q) for Linux Virtual Machine %q (Resource Group %q): %+v", diskId.Name, diskId.ResourceGroup, id.Name, id.ResourceGroup, err)
+					}
+				}
+
+				log.Printf("[DEBUG] Deleted Data Disk from Linux Virtual Machine %q (Resource Group %q).", diskId.Name, diskId.ResourceGroup)
+			} else {
+				log.Printf("[DEBUG] Skipping Deleting Data Disk from Linux Virtual Machine %q (Resource Group %q) - cannot determine OS Disk ID.", id.Name, id.ResourceGroup)
+			}
+		}
+	} else {
+		log.Printf("[DEBUG] Skipping Deleting Data Disk from Linux Virtual Machine %q (Resource Group %q)..", id.Name, id.ResourceGroup)
 	}
 
 	return nil
