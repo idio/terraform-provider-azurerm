@@ -1301,19 +1301,19 @@ func resourceLinuxVirtualMachineDelete(d *pluginsdk.ResourceData, meta interface
 					return err
 				}
 
-				diskDeleteFuture, err := disksClient.Delete(ctx, diskId.ResourceGroup, diskId.Name)
+				diskDeleteFuture, err := disksClient.Delete(ctx, diskId.ResourceGroup, diskId.DiskName)
 				if err != nil {
 					if !response.WasNotFound(diskDeleteFuture.Response()) {
-						return fmt.Errorf("Error deleting Data Disk %q (Resource Group %q) for Linux Virtual Machine %q (Resource Group %q): %+v", diskId.Name, diskId.ResourceGroup, id.Name, id.ResourceGroup, err)
+						return fmt.Errorf("Error deleting Data Disk %q (Resource Group %q) for Linux Virtual Machine %q (Resource Group %q): %+v", diskId.DiskName, diskId.ResourceGroup, id.Name, id.ResourceGroup, err)
 					}
 				}
 				if !response.WasNotFound(diskDeleteFuture.Response()) {
 					if err := diskDeleteFuture.WaitForCompletionRef(ctx, disksClient.Client); err != nil {
-						return fmt.Errorf("Error Data Disk %q (Resource Group %q) for Linux Virtual Machine %q (Resource Group %q): %+v", diskId.Name, diskId.ResourceGroup, id.Name, id.ResourceGroup, err)
+						return fmt.Errorf("Error Data Disk %q (Resource Group %q) for Linux Virtual Machine %q (Resource Group %q): %+v", diskId.DiskName, diskId.ResourceGroup, id.Name, id.ResourceGroup, err)
 					}
 				}
 
-				log.Printf("[DEBUG] Deleted Data Disk from Linux Virtual Machine %q (Resource Group %q).", diskId.Name, diskId.ResourceGroup)
+				log.Printf("[DEBUG] Deleted Data Disk from Linux Virtual Machine %q (Resource Group %q).", diskId.DiskName, diskId.ResourceGroup)
 			} else {
 				log.Printf("[DEBUG] Skipping Deleting Data Disk from Linux Virtual Machine %q (Resource Group %q) - cannot determine OS Disk ID.", id.Name, id.ResourceGroup)
 			}
