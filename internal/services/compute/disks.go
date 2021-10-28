@@ -1,27 +1,27 @@
 package compute
 
 import (
-	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-07-01/compute"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
-	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/services/compute/validate"
-	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2020-12-01/compute"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/compute/validate"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
+	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
 
-func VirtualMachineDataDiskSchema() *schema.Schema {
-	return &schema.Schema{
+func virtualMachineDataDiskSchema() *pluginsdk.Schema {
+	return &pluginsdk.Schema{
 		// TODO: does this want to be a Set?
-		Type:     schema.TypeList,
+		Type:     pluginsdk.TypeList,
 		Optional: true,
-		Elem: &schema.Resource{
-			Schema: map[string]*schema.Schema{
+		Elem: &pluginsdk.Resource{
+			Schema: map[string]*pluginsdk.Schema{
 				"name": {
-					Type:     schema.TypeString,
+					Type:     pluginsdk.TypeString,
 					Optional: true,
 				},
 
 				"caching": {
-					Type:     schema.TypeString,
+					Type:     pluginsdk.TypeString,
 					Required: true,
 					ValidateFunc: validation.StringInSlice([]string{
 						string(compute.CachingTypesNone),
@@ -31,7 +31,7 @@ func VirtualMachineDataDiskSchema() *schema.Schema {
 				},
 
 				"disk_encryption_set_id": {
-					Type:     schema.TypeString,
+					Type:     pluginsdk.TypeString,
 					Optional: true,
 					// whilst the API allows updating this value, it's never actually set at Azure's end
 					// presumably this'll take effect once key rotation is supported a few months post-GA?
@@ -41,19 +41,19 @@ func VirtualMachineDataDiskSchema() *schema.Schema {
 				},
 
 				"disk_size_gb": {
-					Type:         schema.TypeInt,
+					Type:         pluginsdk.TypeInt,
 					Required:     true,
 					ValidateFunc: validation.IntBetween(0, 32767),
 				},
 
 				"lun": {
-					Type:         schema.TypeInt,
+					Type:         pluginsdk.TypeInt,
 					Required:     true,
 					ValidateFunc: validation.IntBetween(0, 2000), // TODO: confirm upper bounds
 				},
 
 				"storage_account_type": {
-					Type:     schema.TypeString,
+					Type:     pluginsdk.TypeString,
 					Required: true,
 					ValidateFunc: validation.StringInSlice([]string{
 						string(compute.StorageAccountTypesPremiumLRS),
@@ -64,7 +64,7 @@ func VirtualMachineDataDiskSchema() *schema.Schema {
 				},
 
 				"write_accelerator_enabled": {
-					Type:     schema.TypeBool,
+					Type:     pluginsdk.TypeBool,
 					Optional: true,
 					Default:  false,
 				},
@@ -73,7 +73,7 @@ func VirtualMachineDataDiskSchema() *schema.Schema {
 	}
 }
 
-func ExpandVirtualMachineDataDisk(input []interface{}) *[]compute.DataDisk {
+func expandVirtualMachineDataDisk(input []interface{}) *[]compute.DataDisk {
 	disks := make([]compute.DataDisk, 0)
 
 	for _, v := range input {
@@ -108,7 +108,7 @@ func ExpandVirtualMachineDataDisk(input []interface{}) *[]compute.DataDisk {
 	return &disks
 }
 
-func FlattenVirtualMachineDataDisk(input *[]compute.DataDisk) []interface{} {
+func flattenVirtualMachineDataDisk(input *[]compute.DataDisk) []interface{} {
 	if input == nil {
 		return []interface{}{}
 	}

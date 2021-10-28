@@ -77,7 +77,7 @@ func resourceLinuxVirtualMachine() *pluginsdk.Resource {
 			},
 
 			"os_disk":   virtualMachineOSDiskSchema(),
-			"data_disk": VirtualMachineDataDiskSchema(),
+			"data_disk": virtualMachineDataDiskSchema(),
 
 			"size": {
 				Type:         pluginsdk.TypeString,
@@ -362,7 +362,7 @@ func resourceLinuxVirtualMachineCreate(d *pluginsdk.ResourceData, meta interface
 	osDisk := expandVirtualMachineOSDisk(osDiskRaw, compute.OperatingSystemTypesLinux)
 
 	dataDisksRaw := d.Get("data_disk").([]interface{})
-	dataDisks := ExpandVirtualMachineDataDisk(dataDisksRaw)
+	dataDisks := expandVirtualMachineDataDisk(dataDisksRaw)
 
 	secretsRaw := d.Get("secret").([]interface{})
 	secrets := expandLinuxSecrets(secretsRaw)
@@ -677,7 +677,7 @@ func resourceLinuxVirtualMachineRead(d *pluginsdk.ResourceData, meta interface{}
 			return fmt.Errorf("settings `os_disk`: %+v", err)
 		}
 
-		flattenedDataDisks := FlattenVirtualMachineDataDisk(profile.DataDisks)
+		flattenedDataDisks := flattenVirtualMachineDataDisk(profile.DataDisks)
 		if err := d.Set("data_disk", flattenedDataDisks); err != nil {
 			return fmt.Errorf("Error settings `data_disk`: %+v", err)
 		}
@@ -901,7 +901,7 @@ func resourceLinuxVirtualMachineUpdate(d *pluginsdk.ResourceData, meta interface
 		shouldDeallocate = false
 
 		dataDisksRaw := d.Get("data_disk").([]interface{})
-		dataDisks := ExpandVirtualMachineDataDisk(dataDisksRaw)
+		dataDisks := expandVirtualMachineDataDisk(dataDisksRaw)
 		update.VirtualMachineProperties.StorageProfile = &compute.StorageProfile{
 			DataDisks: dataDisks,
 		}
